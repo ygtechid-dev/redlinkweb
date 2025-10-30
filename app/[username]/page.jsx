@@ -85,7 +85,7 @@ export default function UserPage() {
       const ref = params.get("ref");
 
       // 🔹 Create Tripay Transaction
-      const response = await fetch("http://localhost:8787/api/tripay/createRL", {
+      const response = await fetch("https://api.ditokoku.id/api/tripay/createRL", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

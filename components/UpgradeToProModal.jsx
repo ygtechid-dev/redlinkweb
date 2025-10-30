@@ -20,7 +20,7 @@ export default function UpgradeToProModal({ isOpen, onClose, profile }) {
       const amountValue = type === "yearly" ? 900000 : 90000;
       const orderId = `PRO-${type}-${Date.now()}`;
 
-      const response = await fetch(`http://localhost:8787/api/tripay/createRL`, {
+      const response = await fetch(`https://api.ditokoku.id/api/tripay/createRL`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
