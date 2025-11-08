@@ -8,14 +8,16 @@ export default function UpgradeToProModal({ isOpen, onClose, profile }) {
   const [qrUrl, setQrUrl] = useState(null);
   const [checkoutUrl, setCheckoutUrl] = useState(null);
   const [amount, setAmount] = useState(null);
+  const [selectedType, setSelectedType] = useState(null);
 
   if (!isOpen) return null;
 
-  // 🔹 Fungsi upgrade ke Tripay (tanpa insert DB)
+  // 🔹 Buat transaksi Tripay
   const handleUpgrade = async (type = "monthly") => {
     try {
       setLoading(true);
       setErrorMsg(null);
+      setSelectedType(type);
 
       const amountValue = type === "yearly" ? 900000 : 90000;
       const orderId = `PRO-${type}-${Date.now()}`;
@@ -52,15 +54,34 @@ export default function UpgradeToProModal({ isOpen, onClose, profile }) {
     }
   };
 
-  // 🔹 Fungsi cek status manual
+  // 🔹 Cek status pembayaran dan update ke Supabase
   const handleCheckPayment = async () => {
-    alert("🔎 Kami akan memverifikasi pembayaran Anda...");
-    await supabase
-      .from("profiles")
-      .update({ plan: "Pro" })
-      .eq("id", profile?.id);
-    alert("✅ Pembayaran dikonfirmasi! Akun Anda telah menjadi PRO 🎉");
-    onClose();
+    alert("🔎 Memverifikasi pembayaran...");
+
+    try {
+      const now = new Date();
+      const expiry = new Date();
+
+      if (selectedType === "yearly") expiry.setFullYear(now.getFullYear() + 1);
+      else expiry.setMonth(now.getMonth() + 1);
+
+      const { error } = await supabase
+        .from("profiles")
+        .update({
+          plan: "pro",
+          pro_valid_until: expiry.toISOString(),
+        })
+        .eq("id", profile?.id);
+
+      if (error) throw error;
+
+      alert("✅ Pembayaran dikonfirmasi! Akun Anda telah menjadi PRO 🎉");
+      onClose();
+      window.location.reload(); // biar countdown langsung aktif
+    } catch (error) {
+      console.error("❌ Error update Supabase:", error);
+      alert("Gagal memperbarui status PRO di database.");
+    }
   };
 
   return (
@@ -68,15 +89,13 @@ export default function UpgradeToProModal({ isOpen, onClose, profile }) {
       <div className="bg-white rounded-2xl shadow-2xl p-8 w-full max-w-lg relative overflow-y-auto max-h-[90vh]">
         {!qrUrl ? (
           <>
-            {/* Header */}
             <h2 className="text-2xl font-bold text-gray-800 mb-2 text-center">
-              Upgrade to <span className="text-red-600">RedLink PRO 🚀</span>
+              Upgrade ke <span className="text-red-600">RedLink PRO 🚀</span>
             </h2>
             <p className="text-center text-gray-500 mb-6">
-              Nikmati semua fitur eksklusif, analitik lengkap, dan tampilan profesional.
+              Nikmati fitur eksklusif, analitik lengkap, dan tampilan profesional.
             </p>
 
-            {/* Feature List */}
             <div className="grid grid-cols-2 gap-4 mb-8">
               {[
                 "Analitik Kunjungan",
@@ -93,7 +112,6 @@ export default function UpgradeToProModal({ isOpen, onClose, profile }) {
               ))}
             </div>
 
-            {/* Harga & Tombol */}
             <div className="space-y-3">
               <button
                 onClick={() => handleUpgrade("monthly")}
@@ -112,12 +130,10 @@ export default function UpgradeToProModal({ isOpen, onClose, profile }) {
               </button>
             </div>
 
-            {/* Error message */}
             {errorMsg && (
               <p className="text-red-500 text-sm mt-4 text-center">{errorMsg}</p>
             )}
 
-            {/* Close button */}
             <button
               onClick={onClose}
               className="mt-8 w-full border border-gray-300 py-2 rounded-xl text-gray-700 font-medium hover:bg-gray-50"
@@ -127,7 +143,6 @@ export default function UpgradeToProModal({ isOpen, onClose, profile }) {
           </>
         ) : (
           <>
-            {/* QRIS Display */}
             <h2 className="text-2xl font-bold text-gray-800 text-center mb-4">
               Pembayaran <span className="text-red-600">RedLink PRO</span>
             </h2>
@@ -147,7 +162,7 @@ export default function UpgradeToProModal({ isOpen, onClose, profile }) {
             </div>
 
             <p className="text-center text-gray-500 mb-4 text-sm">
-              Setelah melakukan pembayaran, klik tombol di bawah ini 👇
+              Setelah pembayaran berhasil, klik tombol di bawah ini 👇
             </p>
 
             <button
@@ -156,14 +171,6 @@ export default function UpgradeToProModal({ isOpen, onClose, profile }) {
             >
               ✅ Saya Sudah Transfer
             </button>
-
-            {/* <a
-              href={checkoutUrl}
-              target="_blank"
-              className="block text-center mt-4 text-sm text-blue-600 underline hover:text-blue-800"
-            >
-              Atau buka halaman pembayaran Tripay
-            </a> */}
 
             <button
               onClick={onClose}

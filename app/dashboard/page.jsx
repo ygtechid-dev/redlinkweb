@@ -1,13 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
-import {
-  Share2,
-  BarChart2,
-  Layers,
-  ShoppingBag,
-  Users,
-  Star,
-} from "lucide-react";
+import { Clock } from "lucide-react";
 import {
   LineChart,
   Line,
@@ -38,6 +31,12 @@ export default function DashboardHome() {
     accountNumber: "",
   });
   const [sending, setSending] = useState(false);
+  const [countdown, setCountdown] = useState({
+    days: 0,
+    hours: 0,
+    minutes: 0,
+    seconds: 0,
+  });
 
   const formatIDR = (num) => {
     if (num == null) return "IDR 0";
@@ -67,6 +66,7 @@ export default function DashboardHome() {
             bio,
             plan,
             avatar_url,
+            pro_valid_until,
             users:users!profiles_user_id_fkey (
               id,
               display_name,
@@ -88,7 +88,7 @@ export default function DashboardHome() {
             .maybeSingle();
 
           if (balanceError) throw balanceError;
-          setBalance(balanceData?.current_balance || 250000); // dummy saldo
+          setBalance(balanceData?.current_balance || 250000);
         }
 
         // Dummy chart
@@ -108,17 +108,48 @@ export default function DashboardHome() {
     fetchData();
   }, []);
 
-  const handleWithdraw = async (e) => {
-    e.preventDefault();
-    setSending(true);
-    try {
-      const { name, bank, accountNumber } = withdrawForm;
-      if (!name || !bank || !accountNumber) {
-        alert("⚠️ Lengkapi semua data penarikan!");
-        setSending(false);
+  // ✅ Countdown Timer untuk membership PRO
+  useEffect(() => {
+    if (!profile?.pro_valid_until) return;
+
+    const updateCountdown = () => {
+      const now = new Date().getTime();
+      const expiry = new Date(profile.pro_valid_until).getTime();
+      const distance = expiry - now;
+
+      if (distance < 0) {
+        setCountdown({ days: 0, hours: 0, minutes: 0, seconds: 0 });
         return;
       }
 
+      const days = Math.floor(distance / (1000 * 60 * 60 * 24));
+      const hours = Math.floor(
+        (distance % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60)
+      );
+      const minutes = Math.floor((distance % (1000 * 60 * 60)) / (1000 * 60));
+      const seconds = Math.floor((distance % (1000 * 60)) / 1000);
+
+      setCountdown({ days, hours, minutes, seconds });
+    };
+
+    updateCountdown();
+    const timer = setInterval(updateCountdown, 1000);
+
+    return () => clearInterval(timer);
+  }, [profile?.pro_valid_until]);
+
+  const handleWithdraw = async (e) => {
+    e.preventDefault();
+    
+    const { name, bank, accountNumber } = withdrawForm;
+    if (!name || !bank || !accountNumber) {
+      alert("⚠️ Lengkapi semua data penarikan!");
+      return;
+    }
+
+    setSending(true);
+
+    try {
       const phone = (profile?.phone || "08123456789").replace(/^0/, "62");
       const message = `
 💸 *Permintaan Tarik Dana Diterima!*
@@ -160,12 +191,13 @@ Terima kasih telah menggunakan *RedLink Affiliate*. 🚀
     }
   };
 
-  if (loading)
+  if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen text-gray-500">
         Loading dashboard...
       </div>
     );
+  }
 
   const isPro = profile?.plan?.toLowerCase() === "pro";
 
@@ -193,7 +225,7 @@ Terima kasih telah menggunakan *RedLink Affiliate*. 🚀
             isPro
               ? "bg-gradient-to-br from-red-800 to-red-900 text-white"
               : "bg-white text-gray-800"
-          } p-6 rounded-2xl shadow-md flex flex-col justify-between transition-all`}
+          } p-6 rounded-2xl shadow-md transition-all`}
         >
           <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-4 mb-4">
             <div className="flex items-center gap-3">
@@ -216,27 +248,83 @@ Terima kasih telah menggunakan *RedLink Affiliate*. 🚀
                 >
                   {profile?.users?.display_name || "RedLink User"}
                 </p>
-                <a
-                  href={`https://redlink.web.id/${profile?.username || "#"}`}
-                  target="_blank"
-                  className={`text-sm ${
-                    isPro ? "text-yellow-300" : "text-red-600"
-                  } hover:underline break-all`}
-                >
-                  {`https://redlink.web.id/${profile?.username || "username"}`}
-                </a>
+                
+               <a
+  href={`https://redlink.web.id/${profile?.username || "#"}`}
+  target="_blank"
+  rel="noopener noreferrer"
+  className={`text-sm ${
+    isPro ? "text-yellow-300" : "text-red-600"
+  } hover:underline break-all`}
+>
+  {`https://redlink.web.id/${profile?.username || "username"}`}
+</a>
+
               </div>
             </div>
 
-            {!isPro && (
-              <button
-                onClick={() => setShowUpgradeModal(true)}
-                className="border border-red-600 text-red-600 rounded-full px-4 py-2 text-sm font-semibold hover:bg-red-50 transition w-fit"
-              >
-                Upgrade to PRO
-              </button>
-            )}
+            {/* Tombol Upgrade selalu muncul */}
+            <button
+              onClick={() => setShowUpgradeModal(true)}
+              className={`border ${
+                isPro
+                  ? "border-yellow-300 text-yellow-300 hover:bg-yellow-300/10"
+                  : "border-red-600 text-red-600 hover:bg-red-50"
+              } rounded-full px-4 py-2 text-sm font-semibold transition w-fit whitespace-nowrap`}
+            >
+              {isPro ? "Extend PRO" : "Upgrade to PRO"}
+            </button>
           </div>
+
+          {/* Valid Until & Countdown (Hanya untuk PRO) */}
+          {isPro && profile?.pro_valid_until && (
+            <div className="mt-4 p-4 rounded-xl bg-yellow-400/20 border border-yellow-300/40">
+              <div className="flex items-center gap-2 mb-2">
+                <Clock className="w-4 h-4 text-yellow-300" />
+                <p className="text-sm font-semibold text-yellow-300">
+                  PRO Membership Valid Until
+                </p>
+              </div>
+              <p className="text-white font-medium mb-3">
+                {new Date(profile.pro_valid_until).toLocaleDateString("id-ID", {
+                  weekday: "long",
+                  year: "numeric",
+                  month: "long",
+                  day: "numeric",
+                  hour: "2-digit",
+                  minute: "2-digit",
+                })}
+              </p>
+
+              {/* Countdown Timer */}
+              <div className="grid grid-cols-4 gap-2 text-center">
+                <div className="bg-white/10 rounded-lg p-2">
+                  <p className="text-2xl font-bold text-yellow-300">
+                    {countdown.days}
+                  </p>
+                  <p className="text-xs text-white/70">Hari</p>
+                </div>
+                <div className="bg-white/10 rounded-lg p-2">
+                  <p className="text-2xl font-bold text-yellow-300">
+                    {countdown.hours}
+                  </p>
+                  <p className="text-xs text-white/70">Jam</p>
+                </div>
+                <div className="bg-white/10 rounded-lg p-2">
+                  <p className="text-2xl font-bold text-yellow-300">
+                    {countdown.minutes}
+                  </p>
+                  <p className="text-xs text-white/70">Menit</p>
+                </div>
+                <div className="bg-white/10 rounded-lg p-2">
+                  <p className="text-2xl font-bold text-yellow-300">
+                    {countdown.seconds}
+                  </p>
+                  <p className="text-xs text-white/70">Detik</p>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Earnings Card */}
@@ -255,17 +343,19 @@ Terima kasih telah menggunakan *RedLink Affiliate*. 🚀
               backgroundSize: "100px 100px",
             }}
           />
-          <h2 className="text-lg font-semibold mb-2">Your Earnings</h2>
-          <p className="text-xl font-bold mb-2">
+          <h2 className="text-lg font-semibold mb-2 relative z-10">
+            Your Earnings
+          </h2>
+          <p className="text-xl font-bold mb-2 relative z-10">
             {balance !== null ? formatIDR(balance) : "IDR — — —"}
           </p>
-          <p className="text-xs opacity-80 mb-4">
+          <p className="text-xs opacity-80 mb-4 relative z-10">
             {balance !== null ? "Updated just now" : "Payout Page"}
           </p>
 
           <button
             onClick={() => setShowWithdrawModal(true)}
-            className={`px-4 py-2 rounded-lg text-sm font-semibold transition ${
+            className={`px-4 py-2 rounded-lg text-sm font-semibold transition relative z-10 ${
               isPro
                 ? "bg-black text-yellow-300 hover:bg-gray-900"
                 : "bg-white text-red-600 hover:bg-gray-100"
